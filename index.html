@@ -3,53 +3,139 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#005A9E" />
   <title>NSRP Payment Portal</title>
-  <link href="https://googleapis.com" rel="stylesheet">
-  <link href="https://googleapis.com" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div class="app-bar">
-    <div class="app-title"><span class="material-icons">account_balance</span> NSRP Portal</div>
-    <div style="display:flex; gap:8px;">
-      <div class="role-badge" onclick="openInboxModal()">
-        <span class="material-icons" style="font-size:16px">mark_email_unread</span> Auto-Mails
-        <span id="mail-badge" style="background:#DC2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:11px;">1</span>
-      </div>
-      <div class="role-badge" onclick="resetDemo()"><span class="material-icons" style="font-size:16px">refresh</span></div>
+    <div class="app-title">🏛️ NSRP Portal</div>
+    <div style="display:flex; gap:6px;">
+      <button type="button" class="role-badge" style="background:#107C10;border:none;color:#fff;" onclick="openEmailModal()">✉️ Send</button>
+      <button type="button" class="role-badge" style="border:none;color:#fff;" onclick="openInboxModal()">📥 Inbox (<span id="mail-badge">1</span>)</button>
+      <button type="button" class="role-badge" style="border:none;color:#fff;" onclick="resetDemo()">🔄</button>
     </div>
   </div>
-
   <div class="role-bar">
     <div class="chip active" id="role-ANHPHAT" onclick="setRole('ANHPHAT')">👷 ANHPHAT</div>
     <div class="chip" id="role-LILAMA18" onclick="setRole('LILAMA18')">👷 LILAMA18</div>
     <div class="chip" id="role-STAFF" onclick="setRole('STAFF')">🏢 NSRP Staff</div>
   </div>
-
-  <div class="container" id="main-list"></div>
-  <div class="fab" onclick="openEmailModal()"><span class="material-icons">edit</span></div>
-
+  <div class="container">
+    <button type="button" class="btn btn-primary" style="margin-bottom:12px;" onclick="openEmailModal()">✉️ Compose & Send Email to NSRP</button>
+    <div id="main-list"></div>
+  </div>
   <div class="modal" id="email-modal">
     <div class="modal-sheet">
-      <div class="sheet-header"><h3>📤 Send Email to NSRP</h3><span class="material-icons close-btn" onclick="closeModals()">close</span></div>
+      <div class="sheet-header"><h3>📤 Send Email to NSRP</h3><span style="font-size:22px;cursor:pointer;" onclick="closeModals()">✕</span></div>
       <p class="sub-info">To: <b>payment.portal@nsrp.com.vn</b></p>
       <label>Email Subject (4-Part Format):</label>
       <input type="text" id="email-subject" />
       <div class="alert-box" id="email-error"></div>
       <label>Message / Attachment Note:</label>
       <textarea id="email-body" rows="3" placeholder="Attached documents..."></textarea>
-      <button class="btn btn-primary" onclick="sendSimulatedEmail()"><span class="material-icons">send</span> Send Email</button>
+      <button type="button" class="btn btn-primary" onclick="sendSimulatedEmail()">🚀 Send Email Now</button>
     </div>
   </div>
-
   <div class="modal" id="detail-modal"><div class="modal-sheet" id="detail-content"></div></div>
   <div class="modal" id="inbox-modal"><div class="modal-sheet" id="inbox-content"></div></div>
   <div class="toast" id="toast"></div>
+  <script>
+    const VN_HOLIDAYS = ['2026-01-01', '2026-04-30', '2026-05-01', '2026-09-02'];
+    const INIT_RECORDS = [
+      { recordId: 'NSRP-ANHPHAT-INV015', contractor: 'ANHPHAT', invoice: 'INV015', status: '3_ON_HOLD_ISSUE', issueCount: 1, maxDays: 0, expectedDate: '', remark: '',
+        history: [{ title: 'SUBMIT', type: 'SUBMIT', time: '2026-11-20 09:15', desc: 'Submitted Invoice #015.' },
+                  { title: 'ISSUE #1', type: 'ISSUE', time: '2026-11-21 14:30', desc: 'Missing site supervisor signature on page 4.' }] },
+      { recordId: 'NSRP-LILAMA18-IPC03', contractor: 'LILAMA18', invoice: 'IPC03', status: '5_CHECKED_OK_PENDING_PAYMENT', issueCount: 0, maxDays: 10, expectedDate: '2026-12-04', remark: 'Verified OK.',
+        history: [{ title: 'SUBMIT', type: 'SUBMIT', time: '2026-11-18 10:00', desc: 'Submitted IPC03.' },
+                  { title: 'CHECKED-OK', type: 'CHECKED_OK', time: '2026-11-20 16:00', desc: 'Expected Payment: 2026-12-04' }] }
+    ];
+    const INIT_EMAILS = [
+      { to: 'accounting@anhphat.vn', subject: '[NSRP PORTAL] Action Required - ISSUE #1 for NSRP-ANHPHAT-INV015', time: '2026-11-21 14:30', unread: true,
+        html: '<p><b>NSRP-ANHPHAT-INV015</b> is ON HOLD (ISSUE #1): Missing signature on page 4.<br>Reply via NEW email: <code>NSRP | ANHPHAT | INV015 | FIX-1</code></p>' }
+    ];
+    let currentRole = 'ANHPHAT';
+    let records = JSON.parse(localStorage.getItem('nsrp_r2')) || INIT_RECORDS;
+    let emails = JSON.parse(localStorage.getItem('nsrp_e2')) || INIT_EMAILS;
 
-  <script src="data.js"></script>
-  <script src="emails.js"></script>
-  <script src="ui.js"></script>
-  <script src="actions.js"></script>
+    function saveAll() { localStorage.setItem('nsrp_r2', JSON.stringify(records)); localStorage.setItem('nsrp_e2', JSON.stringify(emails)); renderList(); }
+    function resetDemo() { localStorage.removeItem('nsrp_r2'); localStorage.removeItem('nsrp_e2'); location.reload(); }
+    function closeModals() { document.querySelectorAll('.modal').forEach(m => m.classList.remove('open')); }
+    function showToast(m) { const t = document.getElementById('toast'); t.innerText = m; t.style.display = 'block'; setTimeout(() => t.style.display = 'none', 2500); }
+    function copyText(txt) { navigator.clipboard.writeText(txt); showToast('Copied: ' + txt); }
+    function pushMail(to, subject, html) { emails.unshift({ to, subject, time: new Date().toISOString().slice(0, 16).replace('T', ' '), unread: true, html }); }
+    function setRole(r) { currentRole = r; document.querySelectorAll('.chip').forEach(c => c.classList.remove('active')); document.getElementById('role-' + r).classList.add('active'); renderList(); }
+    function getBadge(st) { return st === '3_ON_HOLD_ISSUE' ? 'b-issue' : (st === '5_CHECKED_OK_PENDING_PAYMENT' ? 'b-ok' : (st === '4_FIXED_RECHECKING' ? 'b-fix' : 'b-default')); }
+    function getGuide(r) {
+      if (r.status === '5_CHECKED_OK_PENDING_PAYMENT') return '<div class="guide-box" style="color:#107C10;"><b>✓ Completed:</b> Checked OK.</div>';
+      const upd = `NSRP | ${r.contractor} | ${r.invoice} | UPDATE`;
+      let fix = '';
+      if (r.issueCount > 0 && r.status === '3_ON_HOLD_ISSUE') {
+        const cmd = `NSRP | ${r.contractor} | ${r.invoice} | FIX-${r.issueCount}`;
+        fix = `<div style="margin-top:6px;color:#A80000;">Fix Issue #${r.issueCount}:</div><div class="copy-row"><span class="code-txt">${cmd}</span><button type="button" class="btn-copy" onclick="event.stopPropagation();copyText('${cmd}')">Copy</button></div>`;
+      }
+      return `<div class="guide-box"><b>📋 Next Action (No Re:/Fwd:):</b>${fix}<div class="copy-row"><span class="code-txt">${upd}</span><button type="button" class="btn-copy" onclick="event.stopPropagation();copyText('${upd}')">Copy</button></div></div>`;
+    }
+    function renderList() {
+      const list = document.getElementById('main-list');
+      const vis = currentRole === 'STAFF' ? records : records.filter(r => r.contractor === currentRole);
+      list.innerHTML = vis.length ? vis.map(r => `<div class="card" onclick="openDetail('${r.recordId}')"><div class="card-header"><div class="record-id">${r.recordId}</div><span class="badge ${getBadge(r.status)}">${r.status}</span></div><div class="meta-row">Issues: <b>${r.issueCount}</b></div>${r.expectedDate ? `<div class="meta-row" style="color:#107C10;">Payment: <b>${r.expectedDate}</b> (${r.maxDays}d)</div>` : ''}${r.remark ? `<div class="meta-row">Remark: <i>${r.remark}</i></div>` : ''}${getGuide(r)}</div>`).join('') : '<div class="card">No records found.</div>';
+      document.getElementById('mail-badge').innerText = emails.filter(e => e.unread).length;
+    }
+    function openEmailModal() { document.getElementById('email-error').style.display = 'none'; document.getElementById('email-subject').value = `NSRP | ${currentRole === 'STAFF' ? 'ANHPHAT' : currentRole} | INV016 | SUBMIT`; document.getElementById('email-modal').classList.add('open'); }
+    function sendSimulatedEmail() {
+      const subj = document.getElementById('email-subject').value.trim();
+      const body = document.getElementById('email-body').value.trim() || 'Attached documents.';
+      const err = document.getElementById('email-error');
+      const sender = currentRole === 'LILAMA18' ? 'billing@lilama18.vn' : 'accounting@anhphat.vn';
+      if (/^(re:|fwd:|fw:)/i.test(subj) || !subj.toUpperCase().startsWith('NSRP') || subj.split('|').length !== 4) {
+        err.style.display = 'block'; err.innerHTML = '<b>[BLOCKED]</b> Auto-Reply warning sent to Inbox!';
+        pushMail(sender, '[AUTO-REPLY] INVALID SUBJECT FORMAT', '<p style="color:#A80000;">Do NOT use Re:/Fwd:. Format: <code>NSRP | [CODE] | [INV] | [ACTION]</code></p>');
+        saveAll(); return;
+      }
+      const [, contractor, invoice, action] = subj.split('|').map(s => s.trim().toUpperCase());
+      const recordId = `NSRP-${contractor}-${invoice}`;
+      const now = new Date().toISOString().slice(0, 16).replace('T', ' ');
+      let item = records.find(r => r.recordId === recordId);
+      if (action === 'SUBMIT') {
+        if (item) { err.style.display = 'block'; err.innerText = 'Already exists! Use UPDATE.'; return; }
+        records.unshift({ recordId, contractor, invoice, status: '1_SUBMITTED', issueCount: 0, maxDays: 0, expectedDate: '', remark: '', history: [{ title: 'SUBMIT', type: 'SUBMIT', time: now, desc: body }] });
+        pushMail(sender, `[NSRP PORTAL] Confirmed: ${recordId}`, `<p>Received <b>${recordId}</b>. Use <code>NSRP | ${contractor} | ${invoice} | UPDATE</code> to add docs.</p>`);
+      } else if (action === 'UPDATE' && item) {
+        item.history.push({ title: 'UPDATE', type: 'UPDATE', time: now, desc: body });
+        pushMail('payment.team@nsrp.com.vn', `[INTERNAL] UPDATE for ${recordId}`, `<p><b>${contractor}</b> uploaded UPDATE. Status <b>${item.status}</b> preserved.</p>`);
+      } else if (action.startsWith('FIX-') && item) {
+        item.status = '4_FIXED_RECHECKING'; item.history.push({ title: action, type: 'FIX', time: now, desc: body });
+        pushMail('payment.team@nsrp.com.vn', `[INTERNAL] ${action} for ${recordId}`, `<p><b>${contractor}</b> submitted <b>${action}</b>. Status: <b>4_FIXED_RECHECKING</b>.</p>`);
+      } else { err.style.display = 'block'; err.innerText = 'Invalid ACTION or Record ID!'; return; }
+      saveAll(); closeModals(); showToast('Sent & Auto-Email generated!');
+    }
+    function openDetail(id) {
+      const r = records.find(x => x.recordId === id);
+      const staffUI = currentRole === 'STAFF' ? `<div style="border-top:2px solid #E5E7EB;margin-top:12px;padding-top:10px;"><h4>🏢 NSRP Staff Actions</h4><textarea id="issue-in" rows="2" placeholder="Describe issue..."></textarea><button type="button" class="btn btn-danger" onclick="raiseIssue('${r.recordId}')">Send ISSUE #${r.issueCount + 1}</button><input type="number" id="sla-in" value="10" min="0" style="margin-top:10px;" /><input type="text" id="rem-in" placeholder="Payment Remark..." style="margin-top:6px;" /><button type="button" class="btn btn-success" onclick="approveOK('${r.recordId}')">Confirm Check OK</button></div>` : '';
+      document.getElementById('detail-content').innerHTML = `<div class="sheet-header"><h3>${r.recordId}</h3><span style="font-size:22px;cursor:pointer;" onclick="closeModals()">✕</span></div>${getGuide(r)}<div class="timeline">${r.history.map(h => `<div class="tl-item"><div class="tl-dot" style="background:${h.type === 'ISSUE' ? '#DC2626' : '#005A9E'}"></div><div class="tl-title">${h.title} (${h.time})</div><div class="tl-desc">${h.desc}</div></div>`).join('')}</div>${staffUI}`;
+      document.getElementById('detail-modal').classList.add('open');
+    }
+    function raiseIssue(id) {
+      const txt = document.getElementById('issue-in').value.trim(); if (!txt) return;
+      const r = records.find(x => x.recordId === id); r.issueCount++; r.status = '3_ON_HOLD_ISSUE';
+      r.history.push({ title: `ISSUE #${r.issueCount}`, type: 'ISSUE', time: new Date().toISOString().slice(0, 16).replace('T', ' '), desc: txt });
+      pushMail(r.contractor === 'LILAMA18' ? 'billing@lilama18.vn' : 'accounting@anhphat.vn', `[NSRP PORTAL] ISSUE #${r.issueCount} for ${r.recordId}`, `<p><b>${r.recordId}</b> ON HOLD: <b>${txt}</b>. Fix via: <code>NSRP | ${r.contractor} | ${r.invoice} | FIX-${r.issueCount}</code></p>`);
+      saveAll(); closeModals(); showToast(`ISSUE #${r.issueCount} sent!`);
+    }
+    function approveOK(id) {
+      const days = parseInt(document.getElementById('sla-in').value || '0', 10); const rem = document.getElementById('rem-in').value.trim() || 'Approved.'; const r = records.find(x => x.recordId === id);
+      let cur = new Date(), added = 0; while (added < days) { cur.setDate(cur.getDate() + 1); const iso = cur.toISOString().slice(0, 10); if (cur.getDay() !== 0 && cur.getDay() !== 6 && !VN_HOLIDAYS.includes(iso)) added++; }
+      r.maxDays = days; r.expectedDate = cur.toISOString().slice(0, 10); r.remark = rem; r.status = '5_CHECKED_OK_PENDING_PAYMENT';
+      r.history.push({ title: 'CHECKED-OK', type: 'CHECKED_OK', time: new Date().toISOString().slice(0, 16).replace('T', ' '), desc: `Pay: ${r.expectedDate} | ${rem}` });
+      pushMail(r.contractor === 'LILAMA18' ? 'billing@lilama18.vn' : 'accounting@anhphat.vn', `[NSRP PORTAL] Approved: ${r.recordId}`, `<p><b>${r.recordId}</b> APPROVED. Payment Date: <b>${r.expectedDate}</b> (${days} working days). Remark: <i>${rem}</i></p>`);
+      saveAll(); closeModals(); showToast('Checked OK + Email sent!');
+    }
+    function openInboxModal() {
+      emails.forEach(e => e.unread = false); saveAll();
+      document.getElementById('inbox-content').innerHTML = `<div class="sheet-header"><h3>📥 Auto-Emails (${emails.length})</h3><span style="font-size:22px;cursor:pointer;" onclick="closeModals()">✕</span></div>` + emails.map(e => `<div style="border:1px solid #D1D5DB;border-radius:8px;padding:10px;margin:8px 0;background:#FAFAFA;"><div style="font-size:11px;color:#6B7280;">To: <b>${e.to}</b> • ${e.time}</div><div style="font-weight:700;color:#005A9E;font-size:13px;margin:4px 0;">${e.subject}</div><div style="font-size:12px;border-top:1px dashed #E5E7EB;padding-top:6px;">${e.html}</div></div>`).join('');
+      document.getElementById('inbox-modal').classList.add('open');
+    }
+    renderList();
+  </script>
 </body>
 </html>
