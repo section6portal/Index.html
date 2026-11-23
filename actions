@@ -1,0 +1,96 @@
+function openEmailModal() {
+  document.getElementById('email-error').style.display = 'none';
+  document.getElementById('email-subject').value = `NSRP | ${currentRole === 'STAFF' ? 'ANHPHAT' : currentRole} | INV016 | SUBMIT`;
+  document.getElementById('email-modal').classList.add('open');
+}
+
+function sendSimulatedEmail() {
+  const subj = document.getElementById('email-subject').value.trim();
+  const body = document.getElementById('email-body').value.trim() || 'Attached documents.';
+  const err = document.getElementById('email-error');
+  const sender = currentRole === 'LILAMA18' ? 'billing@lilama18.vn' : 'accounting@anhphat.vn';
+
+  if (/^(re:|fwd:|fw:)/i.test(subj) || !subj.toUpperCase().startsWith('NSRP') || subj.split('|').length !== 4) {
+    err.style.display = 'block';
+    err.innerHTML = `<b>[BLOCKED]</b> Auto-Reply sent to ${sender}!`;
+    pushAutoEmail(sender, '[AUTO-REPLY] INVALID EMAIL SUBJECT FORMAT',
+      `<p style="color:#A80000;">Do NOT use <b>Re:/Fwd:</b>. Must follow: <code>NSRP | [CODE] | [INV] | [ACTION]</code></p>`);
+    return;
+  }
+
+  const [, contractor, invoice, action] = subj.split('|').map(s => s.trim().toUpperCase());
+  const recordId = `NSRP-${contractor}-${invoice}`;
+  const now = new Date().toISOString().slice(0, 16).replace('T', ' ');
+  let item = records.find(r => r.recordId === recordId);
+
+  if (action === 'SUBMIT') {
+    if (item) { err.style.display = 'block'; err.innerText = 'Already exists! Use UPDATE.'; return; }
+    records.unshift({ recordId, contractor, invoice, status: '1_SUBMITTED', issueCount: 0, maxDays: 0, expectedDate: '', remark: '', history: [{ title: 'SUBMIT', type: 'SUBMIT', time: now, desc: body }] });
+    pushAutoEmail(sender, `[NSRP PORTAL] Submission Confirmed: ${recordId}`,
+      `<p>Received <b>${recordId}</b>. To add docs later: <code>NSRP | ${contractor} | ${invoice} | UPDATE</code></p>`);
+  } else if (action === 'UPDATE' && item) {
+    item.history.push({ title: 'UPDATE', type: 'UPDATE', time: now, desc: body });
+    pushAutoEmail('payment.team@nsrp.com.vn', `[INTERNAL] UPDATE uploaded for ${recordId}`,
+      `<p><b>${contractor}</b> uploaded UPDATE. Status <b>${item.status}</b> preserved.</p>`);
+  } else if (action.startsWith('FIX-') && item) {
+    item.status = '4_FIXED_RECHECKING';
+    item.history.push({ title: action, type: 'FIX', time: now, desc: body });
+    pushAutoEmail('payment.team@nsrp.com.vn', `[INTERNAL] ${action} submitted for ${recordId}`,
+      `<p><b>${contractor}</b> submitted <b>${action}</b>. Status: <b>4_FIXED_RECHECKING</b>.</p>`);
+  } else {
+    err.style.display = 'block'; err.innerText = 'Invalid ACTION or Record ID!'; return;
+  }
+  save(); closeModals(); showToast('Processed & Auto-Email sent!');
+}
+
+function openDetail(id) {
+  const r = records.find(x => x.recordId === id);
+  const staffUI = currentRole === 'STAFF' ? `
+    <div style="border-top:2px solid #E5E7EB;margin-top:12px;padding-top:10px;">
+      <h4>🏢 NSRP Staff Actions</h4>
+      <textarea id="issue-in" rows="2" placeholder="Describe issue..."></textarea>
+      <button class="btn btn-danger" onclick="raiseIssue('${r.recordId}')">Send ISSUE #${r.issueCount + 1}</button>
+      <input type="number" id="sla-in" value="10" min="0" style="margin-top:10px;" />
+      <input type="text" id="rem-in" placeholder="Payment Remark..." style="margin-top:6px;" />
+      <button class="btn btn-success" onclick="approveOK('${r.recordId}')">Confirm Check OK</button>
+    </div>` : '';
+
+  document.getElementById('detail-content').innerHTML = `
+    <div class="sheet-header"><h3>${r.recordId}</h3><span class="material-icons close-btn" onclick="closeModals()">close</span></div>
+    ${getEmailGuide(r)}
+    <div class="timeline">${r.history.map(h => `
+      <div class="tl-item">
+        <div class="tl-dot" style="background:${h.type === 'ISSUE' ? '#DC2626' : '#005A9E'}"></div>
+        <div class="tl-title">${h.title} <span class="tl-time">(${h.time})</span></div>
+        <div class="tl-desc">${h.desc}</div>
+      </div>`).join('')}
+    </div>${staffUI}`;
+  document.getElementById('detail-modal').classList.add('open');
+}
+
+function raiseIssue(id) {
+  const txt = document.getElementById('issue-in').value.trim();
+  if (!txt) return;
+  const r = records.find(x => x.recordId === id);
+  r.issueCount++; r.status = '3_ON_HOLD_ISSUE';
+  r.history.push({ title: `ISSUE #${r.issueCount}`, type: 'ISSUE', time: new Date().toISOString().slice(0, 16).replace('T', ' '), desc: txt });
+  const cMail = r.contractor === 'LILAMA18' ? 'billing@lilama18.vn' : 'accounting@anhphat.vn';
+  pushAutoEmail(cMail, `[NSRP PORTAL] ISSUE #${r.issueCount} for ${r.recordId}`,
+    `<p><b>${r.recordId}</b> is ON HOLD: <b>${txt}</b>. Reply via NEW email: <code>NSRP | ${r.contractor} | ${r.invoice} | FIX-${r.issueCount}</code></p>`);
+  save(); closeModals(); showToast(`ISSUE #${r.issueCount} sent!`);
+}
+
+function approveOK(id) {
+  const days = parseInt(document.getElementById('sla-in').value || '0', 10);
+  const rem = document.getElementById('rem-in').value.trim() || 'Approved.';
+  const r = records.find(x => x.recordId === id);
+  r.maxDays = days; r.expectedDate = addVNWorkingDays(new Date(), days); r.remark = rem;
+  r.status = '5_CHECKED_OK_PENDING_PAYMENT';
+  r.history.push({ title: 'CHECKED-OK', type: 'CHECKED_OK', time: new Date().toISOString().slice(0, 16).replace('T', ' '), desc: `Pay: ${r.expectedDate} | ${rem}` });
+  const cMail = r.contractor === 'LILAMA18' ? 'billing@lilama18.vn' : 'accounting@anhphat.vn';
+  pushAutoEmail(cMail, `[NSRP PORTAL] Approved for Payment: ${r.recordId}`,
+    `<p><b>${r.recordId}</b> is APPROVED. Expected Payment: <b>${r.expectedDate}</b> (${days} working days). Remark: <i>${rem}</i></p>`);
+  save(); closeModals(); showToast('Checked OK + Email sent!');
+}
+
+renderList();
