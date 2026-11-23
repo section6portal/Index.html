@@ -1,66 +1,86 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#005A9E" />
-  <title>NSRP Payment Portal</title>
-  <link href="https://googleapis.com" rel="stylesheet">
-  <link href="https://googleapis.com" rel="stylesheet">
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <div class="app-bar">
-    <div class="app-title">🏛️ NSRP Portal</div>
-    <div style="display:flex; gap:6px; align-items:center;">
-      <div class="role-badge" style="background:#107C10;" onclick="openEmailModal()">
-        ✉️ Send Mail
-      </div>
-      <div class="role-badge" onclick="openInboxModal()">
-        📥 Inbox <span id="mail-badge" style="background:#DC2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:11px;">1</span>
-      </div>
-      <div class="role-badge" onclick="resetDemo()">🔄</div>
-    </div>
-  </div>
+let currentRole = 'ANHPHAT';
+let records = [];
+try {
+  records = JSON.parse(localStorage.getItem('nsrp_records')) || DEFAULT_DATA;
+} catch (e) {
+  records = DEFAULT_DATA;
+}
 
-  <div class="role-bar">
-    <div class="chip active" id="role-ANHPHAT" onclick="setRole('ANHPHAT')">👷 ANHPHAT</div>
-    <div class="chip" id="role-LILAMA18" onclick="setRole('LILAMA18')">👷 LILAMA18</div>
-    <div class="chip" id="role-STAFF" onclick="setRole('STAFF')">🏢 NSRP Staff</div>
-  </div>
+const save = () => { localStorage.setItem('nsrp_records', JSON.stringify(records)); renderList(); };
+const closeModals = () => document.querySelectorAll('.modal').forEach(m => m.classList.remove('open'));
+const resetDemo = () => { localStorage.clear(); location.reload(); };
 
-  <div class="container">
-    <button class="btn btn-primary" style="margin-bottom:12px;" onclick="openEmailModal()">
-      ✉️ Compose & Send Email to NSRP
-    </button>
-    <div id="main-list"></div>
-  </div>
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  if (!t) return;
+  t.innerText = msg; t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 2800);
+}
 
-  <!-- Modal Soạn Email -->
-  <div class="modal" id="email-modal">
-    <div class="modal-sheet">
-      <div class="sheet-header"><h3>📤 Send Email to NSRP</h3><span class="close-btn" style="font-size:20px;font-weight:bold;" onclick="closeModals()">✕</span></div>
-      <p class="sub-info">To: <b>payment.portal@nsrp.com.vn</b></p>
-      <label>Email Subject (4-Part Format):</label>
-      <input type="text" id="email-subject" />
-      <div class="alert-box" id="email-error"></div>
-      <label>Message / Attachment Note:</label>
-      <textarea id="email-body" rows="3" placeholder="Attached documents..."></textarea>
-      <button class="btn btn-primary" onclick="sendSimulatedEmail()">🚀 Send Email Now</button>
-    </div>
-  </div>
+function copyText(txt) {
+  navigator.clipboard.writeText(txt);
+  showToast('Copied: ' + txt);
+}
 
-  <!-- Modal Chi tiết Hồ sơ -->
-  <div class="modal" id="detail-modal"><div class="modal-sheet" id="detail-content"></div></div>
+function setRole(role) {
+  currentRole = role;
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  const activeChip = document.getElementById('role-' + role);
+  if (activeChip) activeChip.classList.add('active');
+  renderList();
+}
 
-  <!-- Modal Hộp thư Auto-Emails -->
-  <div class="modal" id="inbox-modal"><div class="modal-sheet" id="inbox-content"></div></div>
+function getBadge(st) {
+  if (st === '3_ON_HOLD_ISSUE') return 'b-issue';
+  if (st === '5_CHECKED_OK_PENDING_PAYMENT') return 'b-ok';
+  if (st === '4_FIXED_RECHECKING') return 'b-fix';
+  return 'b-default';
+}
 
-  <div class="toast" id="toast"></div>
+function getEmailGuide(r) {
+  if (r.status === '5_CHECKED_OK_PENDING_PAYMENT') {
+    return `<div class="guide-box" style="color:#107C10;"><b>✓ Completed:</b> Checked OK.</div>`;
+  }
+  const upd = `NSRP | ${r.contractor} | ${r.invoice} | UPDATE`;
+  let fix = '';
+  if (r.issueCount > 0 && r.status === '3_ON_HOLD_ISSUE') {
+    const cmd = `NSRP | ${r.contractor} | ${r.invoice} | FIX-${r.issueCount}`;
+    fix = `<div style="margin-top:6px;color:#A80000;">Fix Issue #${r.issueCount}:</div>
+           <div class="copy-row"><span class="code-txt">${cmd}</span><button class="btn-copy" onclick="event.stopPropagation();copyText('${cmd}')">Copy</button></div>`;
+  }
+  return `<div class="guide-box"><b>📋 Next Action (No Re:/Fwd:):</b>${fix}
+          <div class="copy-row"><span class="code-txt">${upd}</span><button class="btn-copy" onclick="event.stopPropagation();copyText('${upd}')">Copy</button></div></div>`;
+}
 
-  <script src="data.js"></script>
-  <script src="emails.js"></script>
-  <script src="ui.js"></script>
-  <script src="actions.js"></script>
-</body>
-</html>
+function renderList() {
+  const listEl = document.getElementById('main-list');
+  const visible = currentRole === 'STAFF' ? records : records.filter(r => r.contractor === currentRole);
+  listEl.innerHTML = visible.length ? visible.map(r => `
+    <div class="card" onclick="openDetail('${r.recordId}')">
+      <div class="card-header"><div class="record-id">${r.recordId}</div><span class="badge ${getBadge(r.status)}">${r.status}</span></div>
+      <div class="meta-row">Issues: <b>${r.issueCount}</b></div>
+      ${r.expectedDate ? `<div class="meta-row" style="color:#107C10;">Payment: <b>${r.expectedDate}</b> (${r.maxDays}d)</div>` : ''}
+      ${r.remark ? `<div class="meta-row">Remark: <i>${r.remark}</i></div>` : ''}
+      ${getEmailGuide(r)}
+    </div>`).join('') : `<div class="card" style="text-align:center;">No records for ${currentRole}.</div>`;
+  if (typeof updateMailBadge === 'function') updateMailBadge();
+}
+
+function openInboxModal() {
+  const mails = (typeof inboxEmails !== 'undefined' && Array.isArray(inboxEmails)) ? inboxEmails : [];
+  mails.forEach(e => e.unread = false);
+  localStorage.setItem('nsrp_emails', JSON.stringify(mails));
+  if (typeof updateMailBadge === 'function') updateMailBadge();
+
+  const content = document.getElementById('inbox-content');
+  content.innerHTML = `
+    <div class="sheet-header"><h3>📥 Auto-Emails (${mails.length})</h3><span class="material-icons close-btn" onclick="closeModals()">close</span></div>
+    <p class="sub-info">From: <b>payment.portal@nsrp.com.vn</b></p>
+    ${mails.length ? mails.map(e => `
+      <div style="border:1px solid #D1D5DB;border-radius:8px;padding:10px;margin:8px 0;background:#FAFAFA;">
+        <div style="font-size:11px;color:#6B7280;">To: <b>${e.to}</b> • ${e.time}</div>
+        <div style="font-weight:700;color:#005A9E;font-size:13px;margin:4px 0;">${e.subject}</div>
+        <div style="font-size:12px;border-top:1px dashed #E5E7EB;padding-top:6px;">${e.html}</div>
+      </div>`).join('') : '<p style="text-align:center;color:#6B7280;">No emails yet.</p>'}`;
+  document.getElementById('inbox-modal').classList.add('open');
+}
