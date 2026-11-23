@@ -1,5 +1,10 @@
 let currentRole = 'ANHPHAT';
-let records = JSON.parse(localStorage.getItem('nsrp_records')) || DEFAULT_DATA;
+let records = [];
+try {
+  records = JSON.parse(localStorage.getItem('nsrp_records')) || DEFAULT_DATA;
+} catch (e) {
+  records = DEFAULT_DATA;
+}
 
 const save = () => { localStorage.setItem('nsrp_records', JSON.stringify(records)); renderList(); };
 const closeModals = () => document.querySelectorAll('.modal').forEach(m => m.classList.remove('open'));
@@ -7,6 +12,7 @@ const resetDemo = () => { localStorage.clear(); location.reload(); };
 
 function showToast(msg) {
   const t = document.getElementById('toast');
+  if (!t) return;
   t.innerText = msg; t.style.display = 'block';
   setTimeout(() => t.style.display = 'none', 2800);
 }
@@ -19,7 +25,8 @@ function copyText(txt) {
 function setRole(role) {
   currentRole = role;
   document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-  document.getElementById('role-' + role).classList.add('active');
+  const activeChip = document.getElementById('role-' + role);
+  if (activeChip) activeChip.classList.add('active');
   renderList();
 }
 
@@ -56,20 +63,24 @@ function renderList() {
       ${r.remark ? `<div class="meta-row">Remark: <i>${r.remark}</i></div>` : ''}
       ${getEmailGuide(r)}
     </div>`).join('') : `<div class="card" style="text-align:center;">No records for ${currentRole}.</div>`;
-  updateMailBadge();
+  if (typeof updateMailBadge === 'function') updateMailBadge();
 }
 
 function openInboxModal() {
-  inboxEmails.forEach(e => e.unread = false);
-  localStorage.setItem('nsrp_emails', JSON.stringify(inboxEmails));
-  updateMailBadge();
-  document.getElementById('inbox-content').innerHTML = `
-    <div class="sheet-header"><h3>📥 Simulated Auto-Emails</h3><span class="material-icons close-btn" onclick="closeModals()">close</span></div>
-    ${inboxEmails.map(e => `
+  const mails = (typeof inboxEmails !== 'undefined' && Array.isArray(inboxEmails)) ? inboxEmails : [];
+  mails.forEach(e => e.unread = false);
+  localStorage.setItem('nsrp_emails', JSON.stringify(mails));
+  if (typeof updateMailBadge === 'function') updateMailBadge();
+
+  const content = document.getElementById('inbox-content');
+  content.innerHTML = `
+    <div class="sheet-header"><h3>📥 Auto-Emails (${mails.length})</h3><span class="material-icons close-btn" onclick="closeModals()">close</span></div>
+    <p class="sub-info">From: <b>payment.portal@nsrp.com.vn</b></p>
+    ${mails.length ? mails.map(e => `
       <div style="border:1px solid #D1D5DB;border-radius:8px;padding:10px;margin:8px 0;background:#FAFAFA;">
         <div style="font-size:11px;color:#6B7280;">To: <b>${e.to}</b> • ${e.time}</div>
         <div style="font-weight:700;color:#005A9E;font-size:13px;margin:4px 0;">${e.subject}</div>
         <div style="font-size:12px;border-top:1px dashed #E5E7EB;padding-top:6px;">${e.html}</div>
-      </div>`).join('')}`;
+      </div>`).join('') : '<p style="text-align:center;color:#6B7280;">No emails yet.</p>'}`;
   document.getElementById('inbox-modal').classList.add('open');
 }
