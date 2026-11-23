@@ -4,17 +4,21 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#005A9E" />
-  <meta name="mobile-web-app-capable" content="yes" />
   <title>NSRP Payment Portal</title>
   <link href="https://googleapis.com" rel="stylesheet">
   <link href="https://googleapis.com" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-
   <div class="app-bar">
-    <div class="app-title"><span class="material-icons">account_balance</span> NSRP Payment Portal</div>
-    <div class="role-badge" onclick="resetDemo()"><span class="material-icons" style="font-size:16px">refresh</span> Reset</div>
+    <div class="app-title"><span class="material-icons">account_balance</span> NSRP Portal</div>
+    <div style="display:flex; gap:8px;">
+      <div class="role-badge" onclick="openInboxModal()">
+        <span class="material-icons" style="font-size:16px">mark_email_unread</span> Auto-Mails
+        <span id="mail-badge" style="background:#DC2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:11px;">1</span>
+      </div>
+      <div class="role-badge" onclick="resetDemo()"><span class="material-icons" style="font-size:16px">refresh</span></div>
+    </div>
   </div>
 
   <div class="role-bar">
@@ -24,41 +28,28 @@
   </div>
 
   <div class="container" id="main-list"></div>
-
-  <div class="fab" onclick="openEmailModal()" title="Simulate Email">
-    <span class="material-icons">email</span>
-  </div>
+  <div class="fab" onclick="openEmailModal()"><span class="material-icons">edit</span></div>
 
   <div class="modal" id="email-modal">
     <div class="modal-sheet">
-      <div class="sheet-header">
-        <h3>📧 Simulate Email to NSRP</h3>
-        <span class="material-icons close-btn" onclick="closeModals()">close</span>
-      </div>
+      <div class="sheet-header"><h3>📤 Send Email to NSRP</h3><span class="material-icons close-btn" onclick="closeModals()">close</span></div>
       <p class="sub-info">To: <b>payment.portal@nsrp.com.vn</b></p>
-      
-      <label>Email Subject (4-Part Mandatory Format):</label>
-      <input type="text" id="email-subject" placeholder="NSRP | ANHPHAT | INV016 | SUBMIT" />
+      <label>Email Subject (4-Part Format):</label>
+      <input type="text" id="email-subject" />
       <div class="alert-box" id="email-error"></div>
-
-      <label>Email Body / Attachment Note:</label>
-      <textarea id="email-body" rows="3" placeholder="Attached invoice and acceptance minutes..."></textarea>
-
-      <button class="btn btn-primary" onclick="sendSimulatedEmail()">
-        <span class="material-icons">send</span> Send Email
-      </button>
+      <label>Message / Attachment Note:</label>
+      <textarea id="email-body" rows="3" placeholder="Attached documents..."></textarea>
+      <button class="btn btn-primary" onclick="sendSimulatedEmail()"><span class="material-icons">send</span> Send Email</button>
     </div>
   </div>
 
-  <div class="modal" id="detail-modal">
-    <div class="modal-sheet" id="detail-content"></div>
-  </div>
-
+  <div class="modal" id="detail-modal"><div class="modal-sheet" id="detail-content"></div></div>
+  <div class="modal" id="inbox-modal"><div class="modal-sheet" id="inbox-content"></div></div>
   <div class="toast" id="toast"></div>
 
-    <script src="data.js"></script>
-  <script src="app.js"></script>
-</body>
-
+  <script src="data.js"></script>
+  <script src="emails.js"></script>
+  <script src="ui.js"></script>
+  <script src="actions.js"></script>
 </body>
 </html>
